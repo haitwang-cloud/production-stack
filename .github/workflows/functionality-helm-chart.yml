@@ -149,16 +149,20 @@ jobs:
             mkdir -p "$LOG_DIR"
 
             for i in $(seq 1 "${RETRIES}"); do
-              if kubectl wait --for=condition=ready pod -l environment=router,release=router --namespace=default --timeout=120s; then
+              if kubectl wait --for=condition=ready pod -l environment=router,release=router --namespace=default --timeout=60s; then
+                echo "✅ Pods are ready after ${i} attempt(s)"
+                kubectl get pods -n default -o wide > "$LOG_DIR/pod-status.log"
+                kubectl describe pods -n default -l environment=router,release=router >> "$LOG_DIR/pod-event.log"
                 break
               else
                 echo "🚨 Attempt ${i}/${RETRIES}: Pods failed to become ready"
                 kubectl get pods -A -o wide
                 kubectl describe pod -l environment=router,release=router --namespace=default
                 kubectl get events --sort-by='.lastTimestamp'
-                kubectl logs -l environment=router,release=router --namespace=default --all-containers=true --tail=50
+                kubectl logs -l environment=router,release=router --namespace=default --all-containers=true > "$LOG_DIR/pod-logs-attempt-${i}.log"
                 if [ "${i}" -eq "${RETRIES}" ]; then
                   echo "❌ Pods did not become ready after ${RETRIES} attempts."
+                  kubectl logs -l environment=router,release=router --namespace=default --all-containers=true > "$LOG_DIR/pod-logs-final.log"
                   exit 1
                 fi
                 echo "🔄 Retrying in 10 seconds..."
@@ -174,11 +178,11 @@ jobs:
         with:
           name: helm-test-results
           path: |
-            output-*
+            output-logs/**
 
       # Step 7: Clean up resources to ensure no leftover artifacts or clusters remain
       - name: Cleanup Kind cluster
         run: |
           helm uninstall vllm || true
-          kind delete clusters kind
+          kind delete clusters kind || true
         if: always()
