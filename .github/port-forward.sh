@@ -27,8 +27,7 @@ while true; do
         if [[ "$status" != "Running" ]] || [[ "$ready" != "1/1" ]]; then
             # Save detailed pod events
             echo "[$timestamp] Pod $pod_name not ready (Status: $status, Ready: $ready)" | tee -a "output-$VAR/events.log"
-            kubectl describe pod "$pod_name" > "output-$VAR/${pod_name}_events.log" 2>&1
-            echo "Detailed events saved to output-$VAR/${pod_name}_events.log" | tee -a "output-$VAR/events.log"
+            kubectl describe pod "$pod_name" 
         fi
     done
 
