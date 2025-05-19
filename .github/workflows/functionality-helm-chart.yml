@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+      - update-func-test-cpu
     paths:
       - ".github/**"
       - "**.py"
@@ -113,7 +114,7 @@ jobs:
         run: |
           kind load docker-image "$DOCKER_IMAGE_NAME" --name production-stack
 
-      # Step 5: Run Helm tests with a matrix strategy to validate multiple configurations
+      # Step 5.1: Run Helm tests with a matrix strategy to validate multiple configurations
       - name: Run Helm tests with matrix strategy
         env:
           DOCKER_BUILDKIT: 1
@@ -170,7 +171,19 @@ jobs:
               fi
             done
           done
-
+      # Step 5.2 Curl the router to validate the installation and send query to the stack
+      - name: Validate the installation and send query to the stack
+        run: |
+          bash .github/port-forward.sh curl-pod.sh
+        timeout-minutes: 5
+      - name: Archive functionality results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: output-single-pod
+          path: |
+            output-single-pod/
+      - run: echo "🍏 This job's status is ${{ job.status }}.
       # Step 6: Archive test results for debugging and record-keeping
       - name: Archive test results
         uses: actions/upload-artifact@v4
