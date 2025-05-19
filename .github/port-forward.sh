@@ -14,13 +14,30 @@ kubectl logs -f "$POD_NAME" 2>&1 | tee "output-$VAR/router.log" &
 
 # Loop to check if all llmstack-related pods are in the Running state
 while true; do
-    # Get all pods containing "vllm" in their name and extract their STATUS column
-    pod_status=$(kubectl get pods --no-headers | grep "vllm" | awk '{print $3}' | sort | uniq)
-    pod_ready=$(kubectl get pods --no-headers | grep "vllm" | awk '{print $2}' | sort | uniq)
+    # Check each vllm pod individually
+    kubectl get pods --no-headers | grep "vllm" | while read -r line; do
+        pod_name=$(echo "$line" | awk '{print $1}')
+        status=$(echo "$line" | awk '{print $3}')
+        ready=$(echo "$line" | awk '{print $2}')
 
-    # If the only unique status is "Running", break the loop and continue
-    if [[ "$pod_status" == "Running" ]] && [[ "$pod_ready" == "1/1" ]]; then
-        echo "All llmstack pods are now Ready and in Running state."
+        # Log timestamp and pod info
+        timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+        echo "[$timestamp] Checking pod: $pod_name" | tee -a "output-$VAR/events.log"
+
+        if [[ "$status" != "Running" ]] || [[ "$ready" != "1/1" ]]; then
+            # Save detailed pod events
+            echo "[$timestamp] Pod $pod_name not ready (Status: $status, Ready: $ready)" | tee -a "output-$VAR/events.log"
+            kubectl describe pod "$pod_name" > "output-$VAR/${pod_name}_events.log" 2>&1
+            echo "Detailed events saved to output-$VAR/${pod_name}_events.log" | tee -a "output-$VAR/events.log"
+        fi
+    done
+
+    # Check if all pods are ready
+    ready_count=$(kubectl get pods --no-headers | grep "vllm" | grep "Running" | grep "1/1" | wc -l)
+    total_pods=$(kubectl get pods --no-headers | grep "vllm" | wc -l)
+
+    if [[ $ready_count -eq $total_pods ]]; then
+        echo "All $total_pods llmstack pods are now Ready and in Running state."
         break
     fi
 
